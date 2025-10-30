@@ -1,0 +1,19 @@
+{
+  "scripts": {
+    "start": "node split.js",
+    "wolt:login": "node woltAuth.js login",
+    "wolt:test": "node woltAuth.js test",
+    "orders:list": "node manageOrders.js list",
+    "orders:reset": "node manageOrders.js reset",
+    "orders:import": "node importOrders.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "dotenv": "^16.4.5",
+    "nodemailer": "^7.0.10",
+    "playwright": "^1.56.1",
+    "qs": "^6.13.0",
+    "simple-oauth2": "^5.1.0",
+    "splitwise": "^1.0.0"
+  }
+}
