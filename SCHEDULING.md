@@ -147,6 +147,11 @@ For the non-terminal folks:
 - Check PM2 logs: `pm2 logs wolt-splitwise-sync`
 - Make sure Chrome profile exists: `npm run wolt:login`
 
+**Authentication expires**
+- The app will automatically email you when the Wolt session expires
+- Just run `npm run wolt:login` to re-authenticate
+- Email notifications include helpful solutions for common errors
+
 ---
 
 **Recommended:** Use PM2 (Option 1) - it's the simplest and most reliable! 🎯

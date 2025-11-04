@@ -79,6 +79,11 @@ SMTP_PASSWORD=your_app_password
 MAIL_TO=your.email@gmail.com
 ```
 
+📧 **Email notifications include:**
+- ✅ Success reports with order summaries
+- ❌ Error alerts (including authentication failures)
+- 🔧 Helpful solution suggestions
+
 ## 🎮 How To Use
 
 Run this bad boy:

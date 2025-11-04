@@ -16,7 +16,21 @@ const main = async () => {
     try {
         order_ids = await wolt.getOrderHistory(50);
     } catch (error) {
-        logger.error('Failed to fetch order history:', error.message);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        logger.error('Failed to fetch order history:', errorMsg);
+        
+        // Send email notification for authentication failures
+        if (errorMsg.includes('Could not capture bearer token')) {
+            await emailNotifier.sendErrorEmail(
+                'Wolt authentication failed - bearer token expired',
+                {
+                    error: errorMsg,
+                    solution: 'Please run: npm run wolt:login',
+                    timestamp: new Date().toISOString()
+                }
+            );
+        }
+        
         process.exit(1);
     }
     
@@ -126,11 +140,19 @@ const main = async () => {
             logger.error(`❌ Error processing order ${order_id}:`, errorMsg);
             errorCount++;
             
-            // Send error notification
-            await emailNotifier.sendErrorEmail(
-                `Failed to process order ${order_id}: ${errorMsg}`,
-                { order_id }
-            );
+            // Send error notification with more context for auth failures
+            const isAuthError = errorMsg.includes('Could not capture bearer token');
+            const emailSubject = isAuthError 
+                ? `Failed to process order ${order_id}: Authentication expired`
+                : `Failed to process order ${order_id}: ${errorMsg}`;
+                
+            const emailDetails = {
+                order_id,
+                error: errorMsg,
+                ...(isAuthError && { solution: 'Please run: npm run wolt:login' })
+            };
+            
+            await emailNotifier.sendErrorEmail(emailSubject, emailDetails);
         }
         await wait(1000); // Wait 1 second between requests to avoid rate limiting
     }
