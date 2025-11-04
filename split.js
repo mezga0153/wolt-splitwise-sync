@@ -87,21 +87,54 @@ const main = async () => {
         const orderTime = new Date(order.order_details[0].payment_time['$date']).toLocaleString();
         const orderName = order.order_details[0].venue_name + ' ' + orderTime;
         let splits = [];
+        let splitDetails = []; // For email reporting
 
         let sum = 0;
         for (const member of orders) {
+            const woltName = member.first_name + ' ' + member.last_name;
+            const splitwiseID = getSplitwiseID(woltName);
+            const owedAmount = member.total_share / 100;
+            
             splits.push({
-                user_id: getSplitwiseID(member.first_name + ' ' + member.last_name),
+                user_id: splitwiseID,
                 paid_share: 0,
-                owed_share: member.total_share / 100,
+                owed_share: owedAmount,
             });
-            sum += member.total_share / 100;
+            
+            // Add to split details for email
+            const splitwiseName = Object.keys(splitwiseMembers).find(name => 
+                splitwiseMembers[name] === splitwiseID
+            );
+            splitDetails.push({
+                name: splitwiseName,
+                amount: owedAmount,
+                isPayer: false
+            });
+            
+            sum += owedAmount;
         }
-        sum += order.order_details[0].group.my_member.total_share / 100;
+        
+        // Add the payer (my_member)
+        const myMember = order.order_details[0].group.my_member;
+        const myWoltName = myMember.first_name + ' ' + myMember.last_name;
+        const mySplitwiseID = getSplitwiseID(myWoltName);
+        const myOwedAmount = myMember.total_share / 100;
+        
+        sum += myOwedAmount;
         splits.push({
-            user_id: getSplitwiseID(order.order_details[0].group.my_member.first_name + ' ' + order.order_details[0].group.my_member.last_name),
+            user_id: mySplitwiseID,
             paid_share: sum,
-            owed_share: order.order_details[0].group.my_member.total_share / 100,
+            owed_share: myOwedAmount,
+        });
+        
+        // Add payer to split details
+        const mySplitwiseName = Object.keys(splitwiseMembers).find(name => 
+            splitwiseMembers[name] === mySplitwiseID
+        );
+        splitDetails.push({
+            name: mySplitwiseName,
+            amount: myOwedAmount,
+            isPayer: true
         });
 
         logger.log(`💰 Processing: ${orderName} (€${sum.toFixed(2)})`);
@@ -112,7 +145,7 @@ const main = async () => {
         orderTracker.markOrderAsProcessed(order_id, orderName);
         logger.log(`✓ Added to Splitwise and marked as processed\n`);
         
-        return { success: true, orderName, sum };
+        return { success: true, orderName, sum, splitDetails };
     }
 
     // Process new orders
@@ -133,6 +166,7 @@ const main = async () => {
                 processedDetails.push({
                     orderName: result.orderName,
                     sum: result.sum,
+                    splitDetails: result.splitDetails,
                 });
             }
         } catch (error) {

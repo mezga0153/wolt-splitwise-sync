@@ -59,7 +59,14 @@ Wolt to Splitwise Sync - Success Report
 
 ${summary.processedDetails && summary.processedDetails.length > 0 ? `
 Processed Orders:
-${summary.processedDetails.map(d => `- ${d.orderName} (€${d.sum})`).join('\n')}
+${summary.processedDetails.map(d => {
+    const splitInfo = d.splitDetails ? d.splitDetails.map(split => {
+        const status = split.isPayer ? '💰 Paid' : '💸 Owes';
+        return `  ${status}: ${split.name} €${split.amount.toFixed(2)}`;
+    }).join('\n') : '';
+    
+    return `- ${d.orderName} (€${d.sum.toFixed(2)})\n${splitInfo}`;
+}).join('\n\n')}
 ` : ''}
 
 Time: ${new Date().toLocaleString()}
