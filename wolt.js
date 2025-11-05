@@ -6,22 +6,44 @@ const logger = require('./logger');
 let cachedBearerToken = null;
 
 /**
- * Get the bearer token, either from cache or by fetching from browser session
+ * Get the bearer token. Always attempts to refresh from the saved browser session.
+ * This automates token refresh between runs as long as the Chrome session cookies
+ * remain valid. If the saved session is expired (server invalidated cookies),
+ * manual login is still required.
  */
 const getBearerToken = async () => {
-    // Use token from .env if available (for backward compatibility)
+    // Use token from .env if available (for backward compatibility / overrides)
     if (process.env.WOLT_AUTH_BEARER_TOKEN) {
         logger.log('Using bearer token from .env file');
         return process.env.WOLT_AUTH_BEARER_TOKEN;
     }
-    
-    // Otherwise, get from browser session
-    if (!cachedBearerToken) {
-        logger.log('Fetching bearer token from saved browser session...');
-        cachedBearerToken = await woltAuth.getWoltBearer();
+
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            logger.log(`Attempt ${attempt} to fetch bearer token from saved browser session...`);
+            // Always try to fetch a fresh bearer from the saved Chrome profile.
+            cachedBearerToken = await woltAuth.getWoltBearer();
+
+            if (cachedBearerToken) {
+                logger.log('Successfully obtained bearer token from browser session');
+                return cachedBearerToken;
+            }
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            logger.error(`Attempt ${attempt} failed to get bearer token:`, msg);
+
+            // If this was the last attempt, rethrow so caller can handle (and notify)
+            if (attempt === maxAttempts) {
+                throw err;
+            }
+
+            // Small backoff before retrying
+            await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+        }
     }
-    
-    return cachedBearerToken;
+
+    throw new Error('Failed to obtain bearer token');
 };
 
 module.exports = {
