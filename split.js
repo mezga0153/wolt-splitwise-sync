@@ -76,13 +76,13 @@ const main = async () => {
             return splitwiseMembers[lookupName];
         };
 
-        const orders = order.order_details[0].group.other_members;
-
         // Check if this is a group order (skip if not)
         if (!order.order_details[0].group || !order.order_details[0].group.other_members) {
             logger.log(`⏭️  Skipping order ${order_id} - not a group order`);
             return { skipped: true, reason: 'not a group order' };
         }
+
+        const orders = order.order_details[0].group.other_members;
 
         const orderTime = new Date(order.order_details[0].payment_time['$date']).toLocaleString();
         const orderName = order.order_details[0].venue_name + ' ' + orderTime;
