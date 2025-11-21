@@ -68,12 +68,14 @@ const getWoltBearer = async () => {
     const page = context.pages()[0] || await context.newPage();
     
     let bearer = null;
+    let tokenCaptured = false;
     
     // Intercept requests to capture the Authorization header
     page.on('request', request => {
         const headers = request.headers();
-        if (headers.authorization?.startsWith('Bearer ')) {
+        if (!tokenCaptured && headers.authorization?.startsWith('Bearer ')) {
             bearer = headers.authorization;
+            tokenCaptured = true;
             logger.log('✓ Bearer token captured');
         }
     });
