@@ -3,13 +3,9 @@ const axios = require('axios');
 const woltAuth = require('./woltAuth');
 const logger = require('./logger');
 
-let cachedBearerToken = null;
-
 /**
- * Get the bearer token. Always attempts to refresh from the saved browser session.
- * This automates token refresh between runs as long as the Chrome session cookies
- * remain valid. If the saved session is expired (server invalidated cookies),
- * manual login is still required.
+ * Get the bearer token. Uses disk-cached token when fresh, otherwise launches
+ * Chrome to extract a new one from the saved browser session.
  */
 const getBearerToken = async () => {
     // Use token from .env if available (for backward compatibility / overrides)
@@ -18,28 +14,26 @@ const getBearerToken = async () => {
         return process.env.WOLT_AUTH_BEARER_TOKEN;
     }
 
-    const maxAttempts = 3;
+    const maxAttempts = 2;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-            logger.log(`Attempt ${attempt} to fetch bearer token from saved browser session...`);
-            // Always try to fetch a fresh bearer from the saved Chrome profile.
-            cachedBearerToken = await woltAuth.getWoltBearer();
-
-            if (cachedBearerToken) {
-                logger.log('Successfully obtained bearer token from browser session');
-                return cachedBearerToken;
+            logger.log(`Getting bearer token (attempt ${attempt})...`);
+            const token = await woltAuth.getWoltBearer();
+            if (token) {
+                logger.log('Successfully obtained bearer token');
+                return token;
             }
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            logger.error(`Attempt ${attempt} failed to get bearer token:`, msg);
+            logger.error(`Attempt ${attempt} failed:`, msg);
 
-            // If this was the last attempt, rethrow so caller can handle (and notify)
-            if (attempt === maxAttempts) {
+            if (attempt < maxAttempts) {
+                // Invalidate cache and retry with fresh Chrome launch
+                woltAuth.invalidateCachedToken();
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            } else {
                 throw err;
             }
-
-            // Small backoff before retrying
-            await new Promise(resolve => setTimeout(resolve, attempt * 1000));
         }
     }
 

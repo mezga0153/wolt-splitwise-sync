@@ -26,7 +26,15 @@ const error = (...args) => {
     console.error(getTimestamp(), ...args);
 };
 
+/**
+ * Enhanced console.warn with timestamp
+ */
+const warn = (...args) => {
+    console.warn(getTimestamp(), ...args);
+};
+
 module.exports = {
     log,
     error,
+    warn,
 };

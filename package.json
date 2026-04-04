@@ -3,6 +3,7 @@
     "start": "node split.js",
     "wolt:login": "node woltAuth.js login",
     "wolt:test": "node woltAuth.js test",
+    "wolt:refresh": "node woltAuth.js refresh",
     "orders:list": "node manageOrders.js list",
     "orders:reset": "node manageOrders.js reset",
     "orders:import": "node importOrders.js"

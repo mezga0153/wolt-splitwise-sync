@@ -20,12 +20,26 @@ const main = async () => {
         logger.error('Failed to fetch order history:', errorMsg);
         
         // Send email notification for authentication failures
-        if (errorMsg.includes('Could not capture bearer token')) {
+        // Check for various auth-related error messages
+        const isAuthError = 
+            errorMsg.includes('Failed to obtain bearer token') ||
+            errorMsg.includes('Session has expired') ||
+            errorMsg.includes('no bearer tokens found') ||
+            errorMsg.includes('bearer token') ||
+            errorMsg.includes('authentication') ||
+            errorMsg.includes('401') ||
+            errorMsg.includes('Unauthorized');
+            
+        if (isAuthError) {
+            await emailNotifier.sendAuthErrorEmail(
+                'Wolt authentication failed - session expired',
+                errorMsg
+            );
+        } else {
             await emailNotifier.sendErrorEmail(
-                'Wolt authentication failed - bearer token expired',
+                'Wolt sync failed',
                 {
                     error: errorMsg,
-                    solution: 'Please run: npm run wolt:login',
                     timestamp: new Date().toISOString()
                 }
             );
@@ -175,7 +189,12 @@ const main = async () => {
             errorCount++;
             
             // Send error notification with more context for auth failures
-            const isAuthError = errorMsg.includes('Could not capture bearer token');
+            const isAuthError = 
+                errorMsg.includes('Failed to obtain bearer token') ||
+                errorMsg.includes('Session has expired') ||
+                errorMsg.includes('no bearer tokens found') ||
+                errorMsg.includes('bearer token') ||
+                errorMsg.includes('401');
             const emailSubject = isAuthError 
                 ? `Failed to process order ${order_id}: Authentication expired`
                 : `Failed to process order ${order_id}: ${errorMsg}`;

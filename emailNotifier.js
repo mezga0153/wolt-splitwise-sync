@@ -129,7 +129,65 @@ Please check the logs and resolve the issue.
     }
 };
 
+/**
+ * Send authentication error email with clear instructions
+ */
+const sendAuthErrorEmail = async (subject, errorDetails) => {
+    // Skip if email not configured
+    if (!SMTP_USERNAME || !SMTP_PASSWORD) {
+        logger.log('   ℹ️  Email not configured, skipping auth error notification');
+        return;
+    }
+
+    try {
+        const transporter = createTransporter();
+        
+        const emailSubject = `🔐 Wolt-Splitwise: ${subject}`;
+        
+        const text = `
+⚠️ WOLT AUTHENTICATION EXPIRED ⚠️
+
+Your Wolt session has expired and needs to be refreshed manually.
+
+Error Details:
+${errorDetails}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HOW TO FIX:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. SSH into your server (if running remotely)
+2. Navigate to the project directory
+3. Run: npm run wolt:login
+4. Log in to Wolt in the browser window that opens
+5. Press Enter in the terminal once logged in
+6. The sync will resume automatically on the next scheduled run
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Time: ${new Date().toLocaleString()}
+
+This issue typically occurs when:
+- The saved browser session cookies have been invalidated by Wolt
+- More than ~7 days have passed without activity
+- Wolt has updated their authentication system
+`;
+
+        await transporter.sendMail({
+            from: MAIL_FROM,
+            to: MAIL_TO,
+            subject: emailSubject,
+            text: text,
+        });
+
+        logger.log('   ✓ Authentication error email sent');
+    } catch (error) {
+        logger.error('   ⚠️  Failed to send auth error email:', error.message);
+    }
+};
+
 module.exports = {
     sendSuccessEmail,
     sendErrorEmail,
+    sendAuthErrorEmail,
 };

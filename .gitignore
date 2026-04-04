@@ -13,6 +13,7 @@ config.json
 
 # Chrome profile and session data
 wolt-chrome-profile/
+.wolt-last-refresh
 
 # Processed orders tracking
 processed_orders.json
@@ -45,3 +46,4 @@ Thumbs.db
 # Test files
 coverage/
 .nyc_output/
+.wolt-token-cache.json
