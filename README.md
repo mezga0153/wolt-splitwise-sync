@@ -1,4 +1,4 @@
-# 🍕 Wolt-to-Splitwise Auto-Splitter 🤑
+# 🍕 Wolt Auto-Splitter 🤑
 
 ### 🎵 *A Song of Hunger and Deliverance* 🎵
 
@@ -12,7 +12,7 @@
    
    This robot does the math for you,
    No more "who owes what?" review,
-   From Wolt to Splitwise, quick as light,
+   From Wolt to SplitCodex, quick as light,
    Your lunch debts sorted, all polite! 🚀
 ```
 
@@ -29,7 +29,7 @@ This magical script automatically:
 1. 🕵️ Logs into your Wolt account
 2. 📋 Fetches all your group orders
 3. 🧮 Does the math that your brain refuses to do
-4. 💸 Creates Splitwise expenses automagically
+4. 💸 Creates expenses in SplitCodex (or Splitwise) automagically
 5. 📧 Emails you a summary (because you're fancy like that)
 6. 🎉 Makes you look like a tech wizard to your friends
 
@@ -41,6 +41,7 @@ This magical script automatically:
 - 📊 **Keeps Receipts**: Tracks everything in a JSON file (very professional)
 - 🚨 **Error Reporting**: Emails you when something goes wrong (rarely happens, we swear)
 - 🎯 **Name Mapping**: Handles your friends' weird Wolt usernames with grace
+- 🔀 **Pluggable Backends**: SplitCodex (default) or Splitwise — your call
 
 ## 🚀 Setup (It's Easier Than Making Instant Ramen)
 
@@ -55,13 +56,31 @@ npm run wolt:login
 ```
 A Chrome window opens → Log in → Press Enter → Done! 🎊
 
-### Step 3: Configure Your Aliases
+### Step 3: Configure Your Backend
+
+**SplitCodex (default)** — add to `.env`:
+```env
+SPLITCODEX_URL=https://your-splitcodex-instance.com
+SPLITCODEX_API_KEY=your_api_key
+SPLITCODEX_GROUP_ID=your_group_id
+```
+
+**Splitwise (alternative)** — add to `.env`:
+```env
+SPLIT_TARGET=splitwise
+SPLITWISE_API_KEY=your_key
+SPLITWISE_GROUP_ID=your_group_id
+```
+
+The `SPLIT_TARGET` env var controls which backend is used (`splitcodex` is the default).
+
+### Step 4: Configure Your Aliases
 Copy the example and customize it:
 ```bash
 cp aliases.json.example aliases.json
 ```
 
-Then edit `aliases.json` to map Wolt names to Splitwise names:
+Then edit `aliases.json` to map Wolt names to member names in your expense group:
 ```json
 {
     "John Doe": ["j undefined", "John Smith", "johnny"],
@@ -70,7 +89,7 @@ Then edit `aliases.json` to map Wolt names to Splitwise names:
 ```
 *Pro tip: Wolt users love using "undefined" as their last name. It's a feature, not a bug* 🤷
 
-### Step 4: (Optional) Email Setup
+### Step 5: (Optional) Email Setup
 Want fancy email notifications? Add to `.env`:
 ```env
 SMTP_SERVER=smtp.gmail.com
@@ -93,14 +112,14 @@ npm start
 
 Then watch the magic happen:
 ```
-=== Wolt to Splitwise Sync ===
+=== Wolt to SplitCodex Sync ===
 
 ✓ Found 50 orders in history
 ✓ 47 already processed
 ✓ 3 new orders to process
 
 💰 Processing: Easy Beer 30/10/2025 (€21.80)
-   ✓ Splitwise expense created
+   ✓ SplitCodex expense created
    Split among 2 people - 1 owes €10.90
 
 ✓ Successfully processed: 3
@@ -122,7 +141,7 @@ Then watch the magic happen:
 
 ## 🐛 When Things Go Wrong
 
-### "Could not find Splitwise user for Wolt name"
+### "Could not find user for Wolt name"
 **Translation:** Someone's name doesn't match 🤦
 
 **Fix:** Add them to `aliases.json`. The error message literally tells you what to add. Just copy-paste it. You got this! 💪
@@ -164,8 +183,8 @@ pm2 save
 1. **Authentication**: Uses Playwright to launch your real Chrome, saves the session
 2. **Order Fetching**: Hits Wolt's API with your bearer token
 3. **Smart Filtering**: Only grabs group orders you haven't processed
-4. **Name Matching**: Maps Wolt names to Splitwise via aliases
-5. **Expense Creation**: Calls Splitwise API to create expenses
+4. **Name Matching**: Maps Wolt names to expense group members via aliases
+5. **Expense Creation**: Calls SplitCodex (or Splitwise) API to create expenses
 6. **Tracking**: Saves processed order IDs to avoid duplicates
 7. **Notifications**: Emails you a summary (if configured)
 
@@ -176,7 +195,8 @@ pm2 save
 ├── split.js              # Main orchestrator 🎭
 ├── wolt.js               # Wolt API wrapper 🍔
 ├── woltAuth.js           # Chrome automation magic 🤖
-├── splitwise.js          # Splitwise API wrapper 💰
+├── splitcodex.js         # SplitCodex API backend 💰 (default)
+├── splitwise.js          # Splitwise API backend 💸 (alternative)
 ├── orderTracker.js       # Keeps track of what's done ✅
 ├── emailNotifier.js      # Your personal assistant 📧
 ├── aliases.json          # Name translator 📛
@@ -192,7 +212,7 @@ Powered by:
 - 🎭 Playwright (for being a good browser bot)
 - 📦 Nodemailer (for the fancy emails)
 - 🍕 Wolt (for feeding us)
-- 💸 Splitwise (for keeping friendships intact)
+- 💸 SplitCodex (for keeping friendships intact)
 
 ## 📜 License
 
