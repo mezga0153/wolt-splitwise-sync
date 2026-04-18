@@ -27,6 +27,9 @@ yarn-error.log*
 logs/*.log
 logs/*.txt
 
+# Backup files
+*.bak
+
 # OS files
 .DS_Store
 .DS_Store?

@@ -1,15 +1,20 @@
 
 const wolt = require('./wolt');
-const splitwise = require('./splitwise');
 const aliases = require('./aliases.json');
 const orderTracker = require('./orderTracker');
 const emailNotifier = require('./emailNotifier');
 const logger = require('./logger');
 
+// Select expense backend: 'splitwise' (default) or 'splitcodex'
+const splitTarget = (process.env.SPLIT_TARGET || 'splitwise').toLowerCase();
+const backend = splitTarget === 'splitcodex'
+    ? require('./splitcodex')
+    : require('./splitwise');
+
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const main = async () => {
-    logger.log('=== Wolt to Splitwise Sync ===\n');
+    logger.log(`=== Wolt to ${splitTarget === 'splitcodex' ? 'SplitCodex' : 'Splitwise'} Sync ===\n`);
     
     // Fetch order history from Wolt API
     let order_ids;
@@ -65,29 +70,28 @@ const main = async () => {
     const splitOrder = async (order_id) => {
         const order = await wolt.getOrder(order_id);
 
-        const splitwiseMembers = await splitwise.getGroupMembers();
-        // console.log('Splitwise members: ', splitwiseMembers);
+        const members = await backend.getGroupMembers();
 
-        const getSplitwiseID = (woltName) => {
+        const getMemberID = (woltName) => {
             let foundName = null;
-            for (const splitwiseName in aliases) {
-                if (aliases[splitwiseName].includes(woltName)) {
-                    foundName = splitwiseName;
+            for (const aliasName in aliases) {
+                if (aliases[aliasName].includes(woltName)) {
+                    foundName = aliasName;
                     break;
                 }
             }
 
             const lookupName = foundName || woltName;
-            if (!splitwiseMembers[lookupName]) {
-                logger.error(`\n❌ ERROR: Could not find Splitwise user for Wolt name: "${woltName}"`);
+            if (!members[lookupName]) {
+                logger.error(`\n❌ ERROR: Could not find user for Wolt name: "${woltName}"`);
                 logger.error(`   Tried looking for: "${lookupName}"`);
-                logger.error(`   Available Splitwise members: ${Object.keys(splitwiseMembers).join(', ')}`);
+                logger.error(`   Available members: ${Object.keys(members).join(', ')}`);
                 logger.error(`\n   💡 Please add a mapping in aliases.json:`);
                 logger.error(`   "${lookupName}": ["${woltName}"]\n`);
                 throw new Error(`Missing user mapping for: ${woltName}`);
             }
             
-            return splitwiseMembers[lookupName];
+            return members[lookupName];
         };
 
         // Check if this is a group order (skip if not)
@@ -104,23 +108,30 @@ const main = async () => {
         let splitDetails = []; // For email reporting
 
         let sum = 0;
+
+        // Accumulate owed amounts per member (a person may appear multiple times
+        // if they ordered multiple items)
+        const owedByMember = {};
         for (const member of orders) {
             const woltName = member.first_name + ' ' + member.last_name;
-            const splitwiseID = getSplitwiseID(woltName);
+            const memberID = getMemberID(woltName);
             const owedAmount = member.total_share / 100;
-            
+            owedByMember[memberID] = (owedByMember[memberID] || 0) + owedAmount;
+        }
+
+        for (const [memberID, owedAmount] of Object.entries(owedByMember)) {
             splits.push({
-                user_id: splitwiseID,
+                user_id: memberID,
                 paid_share: 0,
                 owed_share: owedAmount,
             });
             
             // Add to split details for email
-            const splitwiseName = Object.keys(splitwiseMembers).find(name => 
-                splitwiseMembers[name] === splitwiseID
+            const memberName = Object.keys(members).find(name => 
+                members[name] === memberID
             );
             splitDetails.push({
-                name: splitwiseName,
+                name: memberName,
                 amount: owedAmount,
                 isPayer: false
             });
@@ -128,36 +139,39 @@ const main = async () => {
             sum += owedAmount;
         }
         
-        // Add the payer (my_member)
-        const myMember = order.order_details[0].group.my_member;
-        const myWoltName = myMember.first_name + ' ' + myMember.last_name;
-        const mySplitwiseID = getSplitwiseID(myWoltName);
-        const myOwedAmount = myMember.total_share / 100;
+        // Add the payer (my_member) - may also appear multiple times for multiple items
+        const myMembers = Array.isArray(order.order_details[0].group.my_member)
+            ? order.order_details[0].group.my_member
+            : [order.order_details[0].group.my_member];
+        
+        const myWoltName = myMembers[0].first_name + ' ' + myMembers[0].last_name;
+        const myMemberID = getMemberID(myWoltName);
+        const myOwedAmount = myMembers.reduce((acc, m) => acc + m.total_share / 100, 0);
         
         sum += myOwedAmount;
         splits.push({
-            user_id: mySplitwiseID,
+            user_id: myMemberID,
             paid_share: sum,
             owed_share: myOwedAmount,
         });
         
         // Add payer to split details
-        const mySplitwiseName = Object.keys(splitwiseMembers).find(name => 
-            splitwiseMembers[name] === mySplitwiseID
+        const myMemberName = Object.keys(members).find(name => 
+            members[name] === myMemberID
         );
         splitDetails.push({
-            name: mySplitwiseName,
+            name: myMemberName,
             amount: myOwedAmount,
             isPayer: true
         });
 
         logger.log(`💰 Processing: ${orderName} (€${sum.toFixed(2)})`);
         
-        await splitwise.addExpense(orderName, sum, splits);
+        await backend.addExpense(orderName, sum, splits);
         
         // Mark order as processed
         orderTracker.markOrderAsProcessed(order_id, orderName);
-        logger.log(`✓ Added to Splitwise and marked as processed\n`);
+        logger.log(`✓ Added and marked as processed\n`);
         
         return { success: true, orderName, sum, splitDetails };
     }
