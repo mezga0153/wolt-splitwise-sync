@@ -17,6 +17,12 @@ const CHROME_ARGS = [
     '--no-default-browser-check',
     '--no-first-run',
     '--disable-features=IsolateOrigins,site-per-process',
+    // Prevent SIGABRT crashes on macOS after sleep/wake.
+    // Headless Chrome tries to initialize GPU via WindowServer which is
+    // briefly unavailable after wake, causing an abort signal.
+    '--disable-gpu',
+    '--disable-software-rasterizer',
+    '--disable-gpu-sandbox',
 ];
 
 /**
@@ -25,30 +31,36 @@ const CHROME_ARGS = [
  */
 const killZombieChromeProcesses = () => {
     try {
-        // Find Chrome processes using our profile directory
-        const singletonLock = path.join(USER_DATA_DIR, 'SingletonLock');
-        if (fs.existsSync(singletonLock)) {
-            logger.warn('Found SingletonLock file - killing zombie Chrome processes...');
-            try {
-                // Read the lock to find the PID (format: hostname-pid)
-                const lockContent = fs.readlinkSync(singletonLock);
-                const pid = lockContent.split('-').pop();
-                if (pid && /^\d+$/.test(pid)) {
+        // Kill any Chrome processes using our profile directory (by command-line match)
+        // This catches SIGABRT-crashed processes that didn't clean up properly
+        try {
+            const profilePathEscaped = USER_DATA_DIR.replace(/'/g, "'\\''");
+            // pgrep on macOS to find Chrome processes referencing our profile
+            const result = execSync(
+                `pgrep -f 'Google Chrome.*${path.basename(USER_DATA_DIR)}' 2>/dev/null || true`,
+                { encoding: 'utf8', timeout: 3000 }
+            ).trim();
+            if (result) {
+                const pids = result.split('\n').filter(p => p.trim());
+                for (const pid of pids) {
                     try {
-                        process.kill(parseInt(pid), 0); // Check if alive
                         logger.warn(`Killing zombie Chrome process ${pid}`);
                         process.kill(parseInt(pid), 'SIGKILL');
-                    } catch (e) {
-                        // Process already dead, just clean up the lock
-                    }
+                    } catch (_) {}
                 }
-            } catch (_) {}
-            // Remove the stale SingletonLock
+                // Give OS a moment to release file handles
+                const wait = Date.now() + 500;
+                while (Date.now() < wait) { /* busy wait */ }
+            }
+        } catch (_) {}
+
+        // Also clean up Chrome's singleton lock files regardless
+        const singletonLock = path.join(USER_DATA_DIR, 'SingletonLock');
+        if (fs.existsSync(singletonLock)) {
+            logger.warn('Removing stale Chrome SingletonLock...');
             try { fs.unlinkSync(singletonLock); } catch (_) {}
-            // Also clean up SingletonSocket and SingletonCookie
             try { fs.unlinkSync(path.join(USER_DATA_DIR, 'SingletonSocket')); } catch (_) {}
             try { fs.unlinkSync(path.join(USER_DATA_DIR, 'SingletonCookie')); } catch (_) {}
-            logger.log('Cleaned up Chrome singleton files');
         }
     } catch (error) {
         logger.error('Error cleaning zombie Chrome:', error.message);
