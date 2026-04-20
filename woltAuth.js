@@ -2,6 +2,7 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const dns = require('dns').promises;
 const logger = require('./logger');
 
 const USER_DATA_DIR = path.resolve(__dirname, 'wolt-chrome-profile');
@@ -355,6 +356,24 @@ const extractBearerFromBrowser = async () => {
 };
 
 /**
+ * Check if wolt.com is reachable. Returns false when the machine has no internet
+ * (e.g. sleeping, no network). Uses a 5-second timeout.
+ */
+const checkInternetConnection = async () => {
+    try {
+        await Promise.race([
+            dns.lookup('wolt.com'),
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('DNS timeout')), 5000)
+            ),
+        ]);
+        return true;
+    } catch (_) {
+        return false;
+    }
+};
+
+/**
  * Get the Wolt bearer token. Uses disk cache when possible to minimize Chrome launches.
  * This is the main entry point - call this to get a valid bearer token.
  */
@@ -363,10 +382,16 @@ const getWoltBearer = async () => {
     const cached = getCachedToken();
     if (cached) return cached;
     
-    // 2. Cache miss or expired - launch Chrome to get a fresh token
+    // 2. Cache miss - verify internet before launching Chrome
+    const online = await checkInternetConnection();
+    if (!online) {
+        throw new Error('NO_INTERNET: Cannot reach wolt.com - skipping Chrome launch');
+    }
+    
+    // 3. Launch Chrome to get a fresh token
     const token = await extractBearerFromBrowser();
     
-    // 3. Cache the new token
+    // 4. Cache the new token
     cacheToken(token);
     
     return token;
@@ -460,4 +485,5 @@ module.exports = {
     refreshSession,
     needsRefresh,
     invalidateCachedToken,
+    checkInternetConnection,
 };

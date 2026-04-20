@@ -4,6 +4,7 @@ const aliases = require('./aliases.json');
 const orderTracker = require('./orderTracker');
 const emailNotifier = require('./emailNotifier');
 const logger = require('./logger');
+const { checkInternetConnection } = require('./woltAuth');
 
 // Select expense backend: 'splitwise' (default) or 'splitcodex'
 const splitTarget = (process.env.SPLIT_TARGET || 'splitwise').toLowerCase();
@@ -15,6 +16,13 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const main = async () => {
     logger.log(`=== Wolt to ${splitTarget === 'splitcodex' ? 'SplitCodex' : 'Splitwise'} Sync ===\n`);
+
+    // Bail out early if there's no internet — avoids Chrome hangs and noise emails
+    const online = await checkInternetConnection();
+    if (!online) {
+        logger.log('No internet connection detected, skipping sync.');
+        return;
+    }
     
     // Fetch order history from Wolt API
     let order_ids;
@@ -23,6 +31,19 @@ const main = async () => {
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         logger.error('Failed to fetch order history:', errorMsg);
+        
+        // Treat no-internet and navigation timeouts as transient — no email, clean exit
+        const isOfflineError =
+            errorMsg.includes('NO_INTERNET') ||
+            errorMsg.includes('Timeout') ||
+            errorMsg.includes('ERR_NAME_NOT_RESOLVED') ||
+            errorMsg.includes('ERR_INTERNET_DISCONNECTED') ||
+            errorMsg.includes('ERR_CONNECTION_REFUSED');
+
+        if (isOfflineError) {
+            logger.log('Offline or network error — skipping sync without notification.');
+            return;
+        }
         
         // Send email notification for authentication failures
         // Check for various auth-related error messages
